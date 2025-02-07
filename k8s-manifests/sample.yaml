@@ -1,0 +1,115 @@
+## K8s manifest to create some test resources
+## namespace: foobar
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: application
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: application
+  name: foobar
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header 'Foo-bar' 'baz';
+    # # https://gist.github.com/erikcw/e999e1fb438dbbb91533?permalink_comment_id=4506566#gistcomment-4506566
+    # # UUID4 has 122 random bits (the remaining 6 are used to record the UUID version and variant, at least for the variant that LUA produces). 
+    # # The dashes between the hex digits are a convention, not a requirement for UUIDs;
+    # # they simply delimit the 16 bytes into a groups of lengths 4, 2, 2, 2 and 6. You can 'transform' a $random_id value into a UUID with 
+    # # simple text transformations (replace the 13th hex digit with 4, update the 17th hex digit (0, 4, C -> 8; 1, 5, D -> 9; 2, 6, E -> A; 3, 7, F -> B), insert the dashes).
+    # nginx.ingress.kubernetes.io/configuration-snippet: |
+    #     set $uuid_m 4;
+    #     if ($request_id ~ '^(?<uuid_g1>[0-9a-f]{8})(?<uuid_g2>[0-9a-f]{4})(?<uuid_g3>[0-9a-f]{3})(?<uuid_n>[0-9a-f]{1})(?<uuid_g4>[0-9a-f]{3})(?<uuid_g5>[0-9a-f]{12})') {
+    #     }
+    #     if ($uuid_n = 0) { set $uuid_n 8; }
+    #     if ($uuid_n = 4) { set $uuid_n 8; }
+    #     if ($uuid_n = c) { set $uuid_n 8; }
+    #     if ($uuid_n = 1) { set $uuid_n 9; }
+    #     if ($uuid_n = 5) { set $uuid_n 9; }
+    #     if ($uuid_n = d) { set $uuid_n 9; }
+    #     if ($uuid_n = 2) { set $uuid_n a; }
+    #     if ($uuid_n = 6) { set $uuid_n a; }
+    #     if ($uuid_n = e) { set $uuid_n a; }
+    #     if ($uuid_n = 3) { set $uuid_n b; }
+    #     if ($uuid_n = 7) { set $uuid_n b; }
+    #     if ($uuid_n = f) { set $uuid_n b; }
+        
+    #     ## If not uuid, then make it uuid
+    #     if ($http_x_request_id !~ "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") {
+    #       set $http_x_request_id $uuid_g1-$uuid_g2-$uuid_m$uuid_g3-$uuid_n$uuid_g4-$uuid_g5;
+    #     }
+spec:
+  rules:
+  - 
+    host: local.test
+    http:
+      paths:
+      - backend:
+          service:
+            name: foobar
+            port:
+              number: 8080
+        path: /
+        pathType: Prefix
+              
+---
+# Pod - mendhak/http-https-echo
+apiVersion: v1
+kind: Pod
+metadata:
+  name: foobar
+  namespace: application
+  labels:
+    app: foobar
+spec:
+  containers:
+  - name: foobar
+    image: mendhak/http-https-echo
+    ports:
+    - containerPort: 8080
+    env:
+    - name: HTTP_PORT
+      value: "8080"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+---
+# apiVersion: v1
+# kind: Pod
+# metadata:
+#   name: ubuntu
+#   namespace: application
+# spec:
+#   containers:
+#   - name: ubuntu
+#     image: ubuntu
+#     command: ['sh', '-c', 'while true; do echo hello; sleep 9999;done']
+#     resources:
+#       requests:
+#         cpu: 100m
+#         memory: 128Mi
+#       limits:
+#         cpu: 400m
+#         memory: 512Mi
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: foobar
+  namespace: application
+spec:
+  selector:
+    app: foobar
+  ports:
+  - protocol: TCP
+    port: 8080
+    targetPort: 8080
+
+

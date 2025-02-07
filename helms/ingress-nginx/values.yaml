@@ -1,0 +1,50 @@
+# https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.2/guide/service/annotations/#nlb-target-type
+# https://github.com/kubernetes/ingress-nginx/blob/main/charts/ingress-nginx/values.yaml
+---
+ingress-nginx:
+  controller:
+    hostPort:
+      enabled: true
+      ports:
+        http: 80
+        https: 443
+    containerPort:
+      http: 80
+      https: 443
+    config:
+      # real-ip-header: proxy_protocol
+      allow-snippet-annotations: "true"
+      annotations-risk-level: "low"
+      use-proxy-protocol: 'false'
+      ssl-redirect: "false" # we use `ingress` port to control ssl redirection
+      redirect-to-https: "false"
+      enable-underscores-in-headers: "true"
+      client-max-body-size: "5m"
+      proxy-body-size: "5m"
+      generate-request-id: "true"
+      # https://gist.github.com/erikcw/e999e1fb438dbbb91533?permalink_comment_id=4506566#gistcomment-4506566
+      # UUID4 has 122 random bits (the remaining 6 are used to record the UUID version and variant, at least for the variant that LUA produces). 
+      # The dashes between the hex digits are a convention, not a requirement for UUIDs;
+      # they simply delimit the 16 bytes into a groups of lengths 4, 2, 2, 2 and 6. You can 'transform' a $random_id value into a UUID with 
+      # simple text transformations (replace the 13th hex digit with 4, update the 17th hex digit (0, 4, C -> 8; 1, 5, D -> 9; 2, 6, E -> A; 3, 7, F -> B), insert the dashes).
+      server-snippet: |
+        set $uuid_m 4;
+        if ($request_id ~ '^(?<uuid_g1>[0-9a-f]{8})(?<uuid_g2>[0-9a-f]{4})(?<uuid_g3>[0-9a-f]{3})(?<uuid_n>[0-9a-f]{1})(?<uuid_g4>[0-9a-f]{3})(?<uuid_g5>[0-9a-f]{12})') {
+        }
+        if ($uuid_n = 0) { set $uuid_n 8; }
+        if ($uuid_n = 4) { set $uuid_n 8; }
+        if ($uuid_n = c) { set $uuid_n 8; }
+        if ($uuid_n = 1) { set $uuid_n 9; }
+        if ($uuid_n = 5) { set $uuid_n 9; }
+        if ($uuid_n = d) { set $uuid_n 9; }
+        if ($uuid_n = 2) { set $uuid_n a; }
+        if ($uuid_n = 6) { set $uuid_n a; }
+        if ($uuid_n = e) { set $uuid_n a; }
+        if ($uuid_n = 3) { set $uuid_n b; }
+        if ($uuid_n = 7) { set $uuid_n b; }
+        if ($uuid_n = f) { set $uuid_n b; }
+        
+        ## If not uuid, then make it uuid
+        if ($http_x_request_id !~ "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") {
+          set $http_x_request_id $uuid_g1-$uuid_g2-$uuid_m$uuid_g3-$uuid_n$uuid_g4-$uuid_g5;
+        }
